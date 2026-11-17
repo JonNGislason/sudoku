@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="is">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Killer Sudoku</title>
+<style>
+:root{
+  --bg:#f3f0e8; --surface:#fffdf8; --surface2:#f7f4ec; --ink:#1e2330; --muted:#7b8090;
+  --line:#ddd7c9; --boxline:#2a2f3d; --cage:#6b7080;
+  --accent:#4a47e0; --accent-ink:#fff; --accent-soft:#e6e7ff;
+  --sel:#bfc8ff; --peer:#eceefb; --same:#d3daff;
+  --user:#3a3ad6; --err:#d6352b; --errbg:#fde2de; --ok:#1e9e6a;
+  --shadow:0 1px 2px rgba(30,35,48,.06),0 8px 28px rgba(30,35,48,.09);
+  --board:min(620px, calc(100vh - 140px), calc(100vw - 400px));
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#101218; --surface:#1a1d26; --surface2:#222632; --ink:#e9ebf2; --muted:#8c92a4;
+  --line:#2f3442; --boxline:#aab0c4; --cage:#8a90a4;
+  --accent:#8f96ff; --accent-ink:#11131a; --accent-soft:#2a2e52;
+  --sel:#434aa8; --peer:#232738; --same:#333b78;
+  --user:#a9b0ff; --err:#ff7a70; --errbg:#4a2326; --ok:#4fd39c;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 28px rgba(0,0,0,.35);
+}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  display:flex;flex-direction:column;align-items:center;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0;touch-action:manipulation}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header{width:100%;max-width:1060px;display:flex;align-items:center;gap:16px;padding:18px 24px 10px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px;letter-spacing:-.02em}
+.logo i{width:30px;height:30px;border-radius:9px;background:var(--accent);display:grid;place-items:center;
+  color:var(--accent-ink);font-style:normal;font-size:17px;font-weight:800;border:0;box-shadow:inset 0 0 0 3px var(--accent),inset 0 0 0 4px rgba(255,255,255,.55)}
+.logo i{outline:1.5px dashed rgba(255,255,255,.7);outline-offset:-5px}
+.segs{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap}
+.seg{display:flex;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px}
+.seg button{padding:8px 14px;border-radius:9px;font-size:14px;font-weight:600;color:var(--muted);transition:.15s}
+@media (hover:hover){.seg button:hover{color:var(--ink)}}
+.seg button.on{background:var(--surface);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.hbtn{display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:11px;background:var(--surface);
+  border:1px solid var(--line);font-weight:600;font-size:14px;transition:.15s}
+@media (hover:hover){.hbtn:hover{border-color:var(--accent);color:var(--accent)}}
+svg.ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+main{display:flex;gap:32px;padding:8px 24px 24px;align-items:flex-start;justify-content:center;width:100%;max-width:1060px}
+.boardwrap{position:relative;width:var(--board);height:var(--board);flex:none;--cell:calc(var(--board) / 9)}
+.board{position:absolute;inset:0;border-radius:14px;overflow:hidden;background:var(--surface);
+  box-shadow:var(--shadow),0 0 0 2.5px var(--boxline)}
+.cells{position:absolute;inset:0;display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr)}
+.cell{position:relative;display:grid;place-items:center;cursor:pointer;transition:background .12s}
+.cell.peer{background:var(--peer)}
+.cell.same{background:var(--same)}
+.cell.sel{background:var(--sel)}
+.cell.error{background:var(--errbg)}
+.cell.error.sel{box-shadow:inset 0 0 0 2px var(--err)}
+.cell .val{font-size:calc(var(--cell)*.56);font-weight:600;line-height:1;transform:translateY(4%)}
+.cell.given .val{color:var(--ink);font-weight:700}
+.cell.user .val{color:var(--user)}
+.cell.error .val{color:var(--err)}
+.cell .sum{position:absolute;left:13%;top:10%;font-size:calc(var(--cell)*.2);font-weight:700;line-height:1;color:var(--cage);
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.cell .notes{position:absolute;inset:29% 11% 9% 11%;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  font-size:calc(var(--cell)*.175);color:var(--muted);font-weight:600;font-family:system-ui,sans-serif}
+.cell .notes span{display:grid;place-items:center;line-height:1}
+.cell .notes span.hl{color:var(--accent);font-weight:800}
+.board svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.board svg path{fill:none;vector-effect:non-scaling-stroke}
+.g-thin{stroke:var(--line);stroke-width:1}
+.g-box{stroke:var(--boxline);stroke-width:2.2}
+.g-cage{stroke:var(--cage);stroke-width:1.2;stroke-dasharray:3.5 3}
+.board.paused .cell>*{opacity:0}
+.board.paused svg .g-cage{opacity:0}
+@keyframes pop{0%{transform:translateY(4%) scale(1)}40%{transform:translateY(-12%) scale(1.35);color:var(--ok)}100%{transform:translateY(4%) scale(1)}}
+.board.won .cell .val{animation:pop .7s var(--d) both}
+@keyframes place{0%{transform:translateY(4%) scale(.5);opacity:0}100%{transform:translateY(4%) scale(1);opacity:1}}
+.cell.just .val{animation:place .18s ease-out}
+.overlay{position:absolute;inset:0;border-radius:14px;display:none;flex-direction:column;gap:14px;align-items:center;justify-content:center;
+  background:color-mix(in srgb,var(--surface) 82%,transparent);backdrop-filter:blur(6px);font-weight:700;font-size:20px;z-index:3}
+.overlay.show{display:flex}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.side{width:300px;flex:none;display:flex;flex-direction:column;gap:16px}
+.info{display:grid;grid-template-columns:1fr 1fr 1fr;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 6px}
+.info div{text-align:center}
+.info small{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:3px}
+.info b{font-size:17px;font-variant-numeric:tabular-nums}
+.info .time{cursor:pointer}
+.info .time b{display:inline-flex;align-items:center;gap:5px}
+.info .time svg{width:13px;height:13px;color:var(--muted)}
+.tools{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tool{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 2px;border-radius:12px;
+  font-size:11.5px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);transition:.15s}
+@media (hover:hover){.tool:hover{color:var(--accent);border-color:var(--accent)}}
+.tool:active{transform:scale(.95)}
+.tool svg{width:21px;height:21px}
+.tool.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tool .badge{position:absolute;top:-7px;right:-5px;font-size:9.5px;font-weight:800;padding:2px 6px;border-radius:99px;background:var(--muted);color:var(--surface)}
+.tool.on .badge{background:var(--ok);color:#fff}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.num{aspect-ratio:1.18;border-radius:14px;background:var(--accent-soft);color:var(--accent);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;font-size:30px;font-weight:700;line-height:1;transition:transform .12s,opacity .35s,background .15s}
+.num small{font-size:10.5px;font-weight:700;opacity:.6;margin-top:4px;font-family:system-ui,sans-serif}
+@media (hover:hover){.num:hover{background:var(--accent);color:var(--accent-ink)}}
+.num:active{transform:scale(.93)}
+.num.hl{box-shadow:inset 0 0 0 2.5px var(--accent)}
+.num.done{opacity:0;transform:scale(.4) translateY(14px);pointer-events:none}
+.newbtn{padding:14px;border-radius:14px;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:16px;transition:.15s}
+@media (hover:hover){.newbtn:hover{filter:brightness(1.1)}}
+.newbtn:active{transform:scale(.98)}
+.keys{font-size:11.5px;color:var(--muted);line-height:1.6;text-align:center}
+kbd{font:inherit;font-weight:700;background:var(--surface);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px}
+
+.modal{position:fixed;inset:0;background:rgba(10,12,20,.5);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+.modal.show{display:flex;animation:fade .18s}
+@keyframes fade{from{opacity:0}}
+.card{background:var(--surface);border-radius:20px;padding:26px;max-width:640px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 24px 80px rgba(0,0,0,.35);animation:rise .22s cubic-bezier(.2,.9,.3,1.2)}
+.card.narrow{max-width:400px;text-align:center}
+@keyframes rise{from{transform:translateY(16px) scale(.97);opacity:0}}
+.card h2{margin:0 0 6px;font-size:24px;letter-spacing:-.02em}
+.card p{margin:0 0 18px;color:var(--muted);line-height:1.5}
+.card .big{font-size:52px;margin-bottom:6px}
+.acts{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap}
+.card.narrow .acts{justify-content:center}
+.btn{padding:11px 18px;border-radius:12px;font-weight:700;font-size:14.5px;background:var(--surface2);border:1px solid var(--line)}
+@media (hover:hover){.btn:hover{border-color:var(--accent)}}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--err)}
+.wingrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 4px}
+.wingrid div{background:var(--surface2);border-radius:12px;padding:12px 4px}
+.wingrid small,.st small{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
+.wingrid b{font-size:20px;font-variant-numeric:tabular-nums}
+.record{display:inline-block;background:var(--ok);color:#fff;font-weight:800;font-size:12.5px;padding:4px 12px;border-radius:99px;margin-bottom:10px}
+.hbtns{display:flex;gap:8px}
+.duelbar{display:none;align-items:center;justify-content:space-between;gap:10px;background:var(--accent-soft);color:var(--accent);
+  border-radius:14px;padding:11px 16px;font-weight:700;font-size:14px}
+.duelbar b{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.duel .duelbar{display:flex}
+body.duel .segs{opacity:.45;pointer-events:none}
+.info .time.idle b{opacity:.45}
+.overlay small{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.overlay .who{font-size:28px;letter-spacing:-.02em;text-align:center;padding:0 16px}
+.overlay p{margin:0;font-size:13.5px;font-weight:500;color:var(--muted);text-align:center;padding:0 24px}
+.card.mid{max-width:500px}
+.card .seg{margin:0}
+.card .seg button{flex:auto}
+.field{margin-top:16px}
+.field>label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:7px}
+.names{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.inp{font:inherit;font-weight:600;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:11px;
+  padding:11px 12px;width:100%;min-width:0;user-select:text;-webkit-user-select:text;outline:none}
+.inp:focus{border-color:var(--accent)}
+.step{display:flex;align-items:center;gap:14px}
+.step button{width:42px;height:42px;border-radius:11px;background:var(--surface2);border:1px solid var(--line);font-size:22px;font-weight:700}
+.step b{font-size:20px;min-width:28px;text-align:center;font-variant-numeric:tabular-nums}
+.tbl{width:100%;border-collapse:collapse;text-align:left;margin-top:6px;font-variant-numeric:tabular-nums}
+.tbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;padding:6px}
+.tbl td{padding:10px 6px;border-top:1px solid var(--line);font-weight:600}
+.tbl td small{display:block;font-size:11px;color:var(--muted);font-weight:500}
+.tbl .r{text-align:right}
+.tbl tr.lead td{color:var(--accent)}
+.tbl td.pts{font-size:17px;font-weight:800}
+.card h4{margin:20px 0 0;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:16px}
+.lv{border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--surface2)}
+.lv h3{margin:0 0 4px;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+.lv h3 span{font-size:12px;color:var(--accent);background:var(--accent-soft);padding:3px 9px;border-radius:99px}
+.bar{height:6px;border-radius:9px;background:var(--line);overflow:hidden;margin:8px 0 12px}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:9px}
+.st{display:grid;grid-template-columns:1fr 1fr;gap:10px 8px}
+.st b{font-size:16px;font-variant-numeric:tabular-nums}
+
+@media (max-width:900px){
+  :root{--board:min(560px, 94vw, calc(100vh - 414px))}
+  header{padding:12px 3vw 6px;gap:10px}
+  .logo{font-size:19px}
+  .hbtn span{display:none}
+  .segs{order:3;margin:0;width:100%;gap:6px}
+  .segs .seg{width:100%}
+  .seg button{flex:auto;padding:8px 2px;font-size:12.5px}
+  .hbtns{margin-left:auto}
+  main{flex-direction:column;align-items:center;gap:12px;padding:6px 3vw 16px}
+  .side{width:var(--board);min-width:300px;gap:10px}
+  .info{padding:8px 6px}
+  .pad{grid-template-columns:repeat(9,1fr);gap:5px}
+  .num{aspect-ratio:.62;font-size:24px;border-radius:10px}
+  .num small{font-size:9.5px}
+  .tool{padding:8px 2px}
+  .keys{display:none}
+  .newbtn{padding:11px}
+  .stats{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><i id="logoI">K</i><span id="logoTxt">Killer Sudoku</span></div>
+  <div class="segs"><div class="seg" id="modeSeg"></div><div class="seg" id="seg"></div></div>
+  <div class="hbtns">
+  <button class="hbtn" id="duelBtn"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5 18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2"/></svg><span>Einvígi</span></button>
+  <button class="hbtn" id="statsBtn"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Tölfræði</span></button>
+  </div>
+</header>
+<main>
+  <div class="boardwrap">
+    <div class="board" id="board">
+      <div class="cells" id="cells"></div>
+      <svg viewBox="0 0 9 9" preserveAspectRatio="none"><path class="g-thin" id="pThin"/><path class="g-cage" id="pCage"/><path class="g-box" id="pBox"/></svg>
+    </div>
+    <div class="overlay" id="pauseOv"><div>Hlé</div><button class="btn pri" id="resumeBtn">Halda áfram</button></div>
+    <div class="overlay" id="turnOv"><small id="turnSub"></small><div class="who" id="turnWho"></div><p>Tíminn byrjar ekki fyrr en þú snertir reit eða tölu.</p><button class="btn pri" id="turnBtn">Sýna þraut</button></div>
+    <div class="overlay" id="genOv"><div class="spin"></div><div>Bý til þraut…</div></div>
+  </div>
+  <div class="side">
+    <div class="duelbar"><span id="dRound"></span><b id="dWho"></b></div>
+    <div class="info">
+      <div><small>Stig</small><b id="iLevel">–</b></div>
+      <div><small>Villur</small><b id="iMist">0</b></div>
+      <div class="time" id="timeBox" title="Hlé (P)"><small>Tími</small><b><span id="iTime">0:00</span><svg class="ic" id="pauseIc" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg></b></div>
+    </div>
+    <div class="tools">
+      <button class="tool" id="tUndo"><svg class="ic" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Afturkalla</button>
+      <button class="tool" id="tErase"><svg class="ic" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L11 21"/><path d="M22 21H7M5 11l9 9"/></svg>Eyða</button>
+      <button class="tool" id="tNotes"><span class="badge" id="nBadge">AF</span><svg class="ic" viewBox="0 0 24 24"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Glósur</button>
+      <button class="tool" id="tHint"><svg class="ic" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4"/><path d="M15.1 14c.2-1 .7-1.7 1.4-2.5A6 6 0 1 0 7.5 11.5c.7.8 1.2 1.5 1.4 2.5"/></svg>Vísbending</button>
+    </div>
+    <div class="pad" id="pad"></div>
+    <button class="newbtn" id="newBtn">Nýr leikur</button>
+    <div class="keys"><kbd>1</kbd>–<kbd>9</kbd> tölur · <kbd>N</kbd> glósur · <kbd>⌫</kbd> eyða · <kbd>Z</kbd> afturkalla · <kbd>H</kbd> vísbending · <kbd>P</kbd> hlé</div>
+  </div>
+</main>
+<div class="modal" id="modal"><div class="card" id="card"></div></div>
+
+<script>
+/*ENGINE-START*/
+const Engine = (() => {
+  const R = [], C = [], B = [], NB = [];
+  for (let i = 0; i < 81; i++) {
+    const r = (i / 9) | 0, c = i % 9;
+    R.push(r); C.push(c); B.push(((r / 3) | 0) * 3 + ((c / 3) | 0));
+    const n = [];
+    if (r > 0) n.push(i - 9); if (r < 8) n.push(i + 9); if (c > 0) n.push(i - 1); if (c < 8) n.push(i + 1);
+    NB.push(n);
+  }
+  const POP = new Uint8Array(1024), MIN = new Int16Array(10240), MAX = new Int16Array(10240);
+  for (let m = 0; m < 1024; m++) {
+    const ds = []; for (let d = 1; d <= 9; d++) if (m >> d & 1) ds.push(d);
+    POP[m] = ds.length;
+    for (let k = 0; k < 10; k++) {
+      if (k > ds.length) { MIN[m * 10 + k] = 999; MAX[m * 10 + k] = -1; continue; }
+      let a = 0, b = 0;
+      for (let j = 0; j < k; j++) { a += ds[j]; b += ds[ds.length - 1 - j]; }
+      MIN[m * 10 + k] = a; MAX[m * 10 + k] = b;
+    }
+  }
+  const rnd = n => (Math.random() * n) | 0;
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+  // Killer: 5 stig. Stig 3 (index 2) er gamla "Auðvelt".
+  const LEVELS = [
+    { weights: [0, 0, 7, 3, 0, 0], max: 3, givens: 34, merge: true, extra: 6 },
+    { weights: [0, 0, 6, 4, 0, 0], max: 3, givens: 25, merge: true, extra: 5 },
+    { weights: [0, 1, 5, 4, 0, 0], max: 3, givens: 16, merge: true, extra: 3 },
+    { weights: [0, 0, 4, 4, 2, 0], max: 4, givens: 10, merge: true, extra: 4 },
+    { weights: [0, 0, 2, 4, 3, 1], max: 5, givens: 3, merge: true, extra: 5 },
+  ];
+  // Venjulegt sudoku: markfjöldi gefinna talna; singles = leysanlegt með einföldum aðferðum.
+  const CLASSIC = [
+    { givens: 46, singles: true },
+    { givens: 40, singles: true },
+    { givens: 34, singles: true },
+    { givens: 29, singles: false },
+    { givens: 24, singles: false },
+  ];
+
+  function solvedGrid() {
+    const g = new Array(81).fill(0), rm = new Int32Array(9), cm = new Int32Array(9), bm = new Int32Array(9);
+    const fill = i => {
+      if (i === 81) return true;
+      for (const d of shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9])) {
+        const b = 1 << d;
+        if ((rm[R[i]] | cm[C[i]] | bm[B[i]]) & b) continue;
+        g[i] = d; rm[R[i]] |= b; cm[C[i]] |= b; bm[B[i]] |= b;
+        if (fill(i + 1)) return true;
+        g[i] = 0; rm[R[i]] ^= b; cm[C[i]] ^= b; bm[B[i]] ^= b;
+      }
+      return false;
+    };
+    fill(0);
+    return g;
+  }
+
+  function makeCages(sol, cfg) {
+    const cageOf = new Array(81).fill(-1);
+    let cages = [];
+    const total = cfg.weights.reduce((a, b) => a + b, 0);
+    const pick = () => { let x = Math.random() * total; for (let s = 1; s < cfg.weights.length; s++) { x -= cfg.weights[s]; if (x < 0) return s; } return 2; };
+    for (const start of shuffle([...Array(81).keys()])) {
+      if (cageOf[start] !== -1) continue;
+      const target = pick(), cells = [start], id = cages.length;
+      let mask = 1 << sol[start];
+      cageOf[start] = id;
+      while (cells.length < target) {
+        const opts = [];
+        for (const c of cells) for (const n of NB[c]) if (cageOf[n] === -1 && !(mask >> sol[n] & 1)) opts.push(n);
+        if (!opts.length) break;
+        const n = opts[rnd(opts.length)];
+        cells.push(n); cageOf[n] = id; mask |= 1 << sol[n];
+      }
+      cages.push(cells);
+    }
+    if (cfg.merge) {
+      for (let id = 0; id < cages.length; id++) {
+        if (cages[id].length !== 1) continue;
+        const cell = cages[id][0];
+        const opts = shuffle(NB[cell].slice()).filter(n => {
+          const o = cages[cageOf[n]];
+          return cageOf[n] !== id && o.length < cfg.max && !o.some(x => sol[x] === sol[cell]);
+        });
+        if (!opts.length) continue;
+        opts.sort((a, b) => cages[cageOf[a]].length - cages[cageOf[b]].length);
+        const t = cageOf[opts[0]];
+        cages[t].push(cell); cageOf[cell] = t; cages[id] = [];
+      }
+    }
+    cages = cages.filter(c => c.length).map(c => c.sort((a, b) => a - b));
+    cages.sort((a, b) => a[0] - b[0]);
+    const out = cages.map(cells => ({ cells, sum: cells.reduce((s, i) => s + sol[i], 0) }));
+    out.forEach((cg, id) => cg.cells.forEach(i => cageOf[i] = id));
+    return { cages: out, cageOf };
+  }
+
+  // Counts solutions (up to `limit`). fixed: array of 81 with 0 or a digit.
+  function solve(cages, cageOf, fixed, limit, nodeLimit) {
+    const n = cages.length, val = new Int8Array(81);
+    const rm = new Int32Array(9), cm = new Int32Array(9), bm = new Int32Array(9);
+    const gm = new Int32Array(n), gRem = new Int32Array(n), gLeft = new Int32Array(n);
+    for (let k = 0; k < n; k++) { gRem[k] = cages[k].sum; gLeft[k] = cages[k].cells.length; }
+    const place = (i, d) => { const b = 1 << d, g = cageOf[i]; val[i] = d; rm[R[i]] |= b; cm[C[i]] |= b; bm[B[i]] |= b; if (g >= 0) { gm[g] |= b; gRem[g] -= d; gLeft[g]--; } };
+    const unplace = (i, d) => { const b = 1 << d, g = cageOf[i]; val[i] = 0; rm[R[i]] ^= b; cm[C[i]] ^= b; bm[B[i]] ^= b; if (g >= 0) { gm[g] ^= b; gRem[g] += d; gLeft[g]++; } };
+    const cands = i => {
+      const g = cageOf[i];
+      if (g < 0) return ~(rm[R[i]] | cm[C[i]] | bm[B[i]]) & 0x3FE;
+      const used = gm[g], k = gLeft[g] - 1, rem = gRem[g];
+      const m = ~(rm[R[i]] | cm[C[i]] | bm[B[i]] | used) & 0x3FE;
+      let out = 0;
+      for (let d = 1; d <= 9; d++) {
+        const b = 1 << d;
+        if (!(m & b)) continue;
+        const r = rem - d;
+        if (k === 0) { if (r === 0) out |= b; }
+        else { const av = ~(used | b) & 0x3FE; if (r >= MIN[av * 10 + k] && r <= MAX[av * 10 + k]) out |= b; }
+      }
+      return out;
+    };
+    for (let i = 0; i < 81; i++) if (fixed[i]) place(i, fixed[i]);
+    const sols = []; let nodes = 0, aborted = false;
+    const rec = () => {
+      if (++nodes > nodeLimit) { aborted = true; return; }
+      let best = -1, bMask = 0, bCnt = 10;
+      for (let i = 0; i < 81; i++) {
+        if (val[i]) continue;
+        const m = cands(i), c = POP[m];
+        if (c === 0) return;
+        if (c < bCnt) { bCnt = c; best = i; bMask = m; if (c === 1) break; }
+      }
+      if (best === -1) { sols.push(Array.from(val)); return; }
+      for (let d = 1; d <= 9; d++) {
+        if (!(bMask >> d & 1)) continue;
+        place(best, d); rec(); unplace(best, d);
+        if (aborted || sols.length >= limit) return;
+      }
+    };
+    rec();
+    return { sols, aborted, nodes };
+  }
+
+  function generate(level) {
+    const cfg = LEVELS[level];
+    let result = null;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const sol = solvedGrid();
+      const { cages, cageOf } = makeCages(sol, cfg);
+      const fixed = new Array(81).fill(0);
+      const free = shuffle([...Array(81).keys()].filter(i => cages[cageOf[i]].cells.length > 1));
+      for (let k = 0; k < cfg.givens && free.length; k++) { const i = free.pop(); fixed[i] = sol[i]; }
+      let extra = 0, ok = false;
+      const maxExtra = attempt < 30 ? cfg.extra : 81;
+      while (extra <= maxExtra) {
+        const res = solve(cages, cageOf, fixed, 2, 40000);
+        let add = -1;
+        if (res.aborted) { if (!free.length) break; add = free.pop(); }
+        else {
+          const other = res.sols.find(s => s.some((v, i) => v !== sol[i]));
+          if (!other) { ok = true; break; }
+          const diff = []; for (let i = 0; i < 81; i++) if (other[i] !== sol[i] && !fixed[i]) diff.push(i);
+          add = diff[rnd(diff.length)];
+        }
+        fixed[add] = sol[add]; extra++;
+      }
+      result = { solution: sol, cages, cageOf, givens: fixed.map((v, i) => v ? i : -1).filter(i => i >= 0) };
+      if (ok) return result;
+    }
+    return result;
+  }
+
+  // Leysir aðeins með "naked" og "hidden singles". Skilar true ef það dugar til að klára.
+  const UNITS = [];
+  for (let k = 0; k < 9; k++) {
+    const r = [], c = [], b = [];
+    for (let i = 0; i < 81; i++) { if (R[i] === k) r.push(i); if (C[i] === k) c.push(i); if (B[i] === k) b.push(i); }
+    UNITS.push(r, c, b);
+  }
+  function singlesSolvable(fixed) {
+    const v = fixed.slice(), rm = new Int32Array(9), cm = new Int32Array(9), bm = new Int32Array(9);
+    let left = 0;
+    const put = (i, d) => { v[i] = d; const b = 1 << d; rm[R[i]] |= b; cm[C[i]] |= b; bm[B[i]] |= b; left--; };
+    for (let i = 0; i < 81; i++) { if (v[i]) { const b = 1 << v[i]; rm[R[i]] |= b; cm[C[i]] |= b; bm[B[i]] |= b; } else left++; }
+    const cand = i => ~(rm[R[i]] | cm[C[i]] | bm[B[i]]) & 0x3FE;
+    let progress = true;
+    while (left && progress) {
+      progress = false;
+      for (let i = 0; i < 81; i++) {
+        if (v[i]) continue;
+        const m = cand(i);
+        if (!m) return false;
+        if (POP[m] === 1) { put(i, 31 - Math.clz32(m)); progress = true; }
+      }
+      for (const u of UNITS) for (let d = 1; d <= 9; d++) {
+        let at = -1, n = 0;
+        for (const i of u) { if (v[i] === d) { n = -1; break; } if (!v[i] && (cand(i) >> d & 1)) { n++; at = i; } }
+        if (n === 1) { put(at, d); progress = true; }
+      }
+    }
+    return left === 0;
+  }
+
+  function generateClassic(level) {
+    const cfg = CLASSIC[level], noCage = new Array(81).fill(-1);
+    let best = null;
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const sol = solvedGrid(), fixed = sol.slice();
+      let count = 81;
+      for (const i of shuffle([...Array(41).keys()])) {
+        if (count <= cfg.givens) break;
+        const j = 80 - i, pair = i === j ? [i] : [i, j];
+        pair.forEach(k => fixed[k] = 0);
+        const res = solve([], noCage, fixed, 2, 200000);
+        if (res.sols.length === 1 && !res.aborted && (!cfg.singles || singlesSolvable(fixed))) count -= pair.length;
+        else pair.forEach(k => fixed[k] = sol[k]);
+      }
+      const good = count <= cfg.givens + 2 && (cfg.singles || !singlesSolvable(fixed));
+      if (!best || (good && !best.good) || (good === best.good && count < best.count)) best = { count, good, sol, fixed: fixed.slice() };
+      if (good) break;
+    }
+    return { solution: best.sol, cages: [], cageOf: noCage, givens: best.fixed.map((v, i) => v ? i : -1).filter(i => i >= 0) };
+  }
+  return { generate, generateClassic, solve, singlesSolvable, R, C, B };
+})();
+/*ENGINE-END*/
+
+const LEVEL_NAMES = ['Byrjandi', 'Auðvelt', 'Miðlungs', 'Erfitt', 'Snillingur'];
+const NL = LEVEL_NAMES.length;
+const MODES = { killer: 'Killer', classic: 'Venjulegt' };
+const MODE_TITLE = { killer: 'Killer Sudoku', classic: 'Sudoku' };
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+const blank = () => ({ played: 0, won: 0, best: 0, total: 0, streak: 0, bestStreak: 0, perfect: 0 });
+const blankAll = () => ({ killer: LEVEL_NAMES.map(blank), classic: LEVEL_NAMES.map(blank) });
+// Gömlu 4 stigin færast upp um tvö (gamla "Auðvelt" er nú stig 3 af 5).
+const oldLevel = l => Math.min(NL - 1, (l | 0) + 2);
+let stats = store.get('ks-stats2', null);
+if (!stats || !Array.isArray(stats.killer) || stats.killer.length !== NL || !Array.isArray(stats.classic) || stats.classic.length !== NL) {
+  stats = blankAll();
+  const old = store.get('ks-stats', null);
+  if (Array.isArray(old)) old.slice(0, 3).forEach((s, i) => { if (s) stats.killer[oldLevel(i)] = Object.assign(blank(), s); });
+}
+let mode = store.get('ks-mode', 'killer') === 'classic' ? 'classic' : 'killer';
+let game = null, sel = -1, hl = 0, notesMode = false, paused = false, busy = false, justCell = -1, waiting = false;
+let match = store.get('ks-match', null);
+if (!match || !match.puzzle || !Array.isArray(match.players)) match = null;
+if (match && !match.mode) { match.mode = 'killer'; match.level = oldLevel(match.level); }
+const gen = (m, level) => m === 'classic' ? Engine.generateClassic(level) : Engine.generate(level);
+const sameCage = (a, b) => game.cageOf[a] >= 0 && game.cageOf[a] === game.cageOf[b];
+const lvStats = () => stats[game.mode][game.level];
+const PEN_MISTAKE = 30, PEN_HINT = 60;
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const cellEls = [], padEls = [];
+const fmt = s => { const h = (s / 3600) | 0, m = ((s % 3600) / 60) | 0, x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+
+/* ---------- build static UI ---------- */
+LEVEL_NAMES.forEach((n, i) => {
+  const b = document.createElement('button'); b.textContent = n; b.title = `Stig ${i + 1} af ${NL}`;
+  b.onclick = () => requestNew(i, curMode()); $('#seg').append(b);
+});
+Object.entries(MODES).forEach(([k, n]) => {
+  const b = document.createElement('button'); b.textContent = n; b.dataset.m = k;
+  b.onclick = () => { if (k !== curMode()) requestNew(curLevel(), k); };
+  $('#modeSeg').append(b);
+});
+for (let i = 0; i < 81; i++) {
+  const el = document.createElement('div'); el.className = 'cell';
+  el.style.setProperty('--d', ((Engine.R[i] + Engine.C[i]) * 45) + 'ms');
+  el.innerHTML = '<span class="sum"></span><span class="val"></span><div class="notes">' + '<span></span>'.repeat(9) + '</div>';
+  el.addEventListener('pointerdown', () => select(i));
+  $('#cells').append(el);
+  cellEls.push({ el, sum: el.children[0], val: el.children[1], notes: [...el.children[2].children] });
+}
+for (let d = 1; d <= 9; d++) {
+  const b = document.createElement('button'); b.className = 'num';
+  b.innerHTML = d + '<small></small>'; b.onclick = () => input(d);
+  $('#pad').append(b); padEls[d] = b;
+}
+{
+  let thin = '', box = '';
+  for (let k = 1; k < 9; k++) { const p = k % 3 ? 'thin' : 'box', s = `M${k} 0V9M0 ${k}H9`; if (p === 'thin') thin += s; else box += s; }
+  $('#pThin').setAttribute('d', thin); $('#pBox').setAttribute('d', box);
+}
+
+function drawCages() {
+  const p = 0.075, co = game.cageOf;
+  if (!game.cages.length) { $('#pCage').setAttribute('d', ''); cellEls.forEach(c => c.sum.textContent = ''); return; }
+  const inC = (r, c, id) => r >= 0 && r < 9 && c >= 0 && c < 9 && co[r * 9 + c] === id;
+  let d = '';
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+    const id = co[r * 9 + c];
+    const T = !inC(r - 1, c, id), Bt = !inC(r + 1, c, id), L = !inC(r, c - 1, id), Rt = !inC(r, c + 1, id);
+    const xs = up => L ? c + p : (inC(r + up, c - 1, id) ? c - p : c);
+    const xe = up => Rt ? c + 1 - p : (inC(r + up, c + 1, id) ? c + 1 + p : c + 1);
+    const ys = lf => T ? r + p : (inC(r - 1, c + lf, id) ? r - p : r);
+    const ye = lf => Bt ? r + 1 - p : (inC(r + 1, c + lf, id) ? r + 1 + p : r + 1);
+    if (T) d += `M${xs(-1)} ${r + p}H${xe(-1)}`;
+    if (Bt) d += `M${xs(1)} ${r + 1 - p}H${xe(1)}`;
+    if (L) d += `M${c + p} ${ys(-1)}V${ye(-1)}`;
+    if (Rt) d += `M${c + 1 - p} ${ys(1)}V${ye(1)}`;
+  }
+  $('#pCage').setAttribute('d', d);
+  cellEls.forEach(c => c.sum.textContent = '');
+  game.cages.forEach(cg => cellEls[cg.cells[0]].sum.textContent = cg.sum);
+}
+
+/* ---------- game lifecycle ---------- */
+function save() { if (game) store.set('ks-game', game); }
+function saveStats() { store.set('ks-stats2', stats); }
+
+// Það sem notandinn sér valið: beiðni í bið > þraut í smíðum > núverandi leikur.
+let pending = null;
+const curMode = () => pending ? pending[1] : (busy || !game) ? mode : game.mode;
+const curLevel = () => pending ? pending[0] : (busy || !game) ? store.get('ks-level', 2) : game.level;
+function markSegs(level, m) {
+  [...$('#seg').children].forEach((b, i) => b.classList.toggle('on', i === level));
+  [...$('#modeSeg').children].forEach(b => b.classList.toggle('on', b.dataset.m === m));
+}
+
+function requestNew(level, m) {
+  if (match) return;
+  m = m || curMode();
+  // Ef þraut er í smíðum er beiðnin geymd og keyrð strax á eftir (í stað þess að hunsa hana).
+  if (busy) { pending = [level, m]; markSegs(level, m); return; }
+  if (game && game.counted && !game.done) {
+    const sw = m !== game.mode;
+    showModal(sw
+      ? `<h2>Skipta yfir í ${MODE_TITLE[m]}?</h2><p>Núverandi leikur er ókláraður og verður skráður sem tap.</p>
+      <div class="acts"><button class="btn" data-a="close">Nei, halda áfram</button><button class="btn pri" data-a="go">Já, skipta</button></div>`
+      : `<h2>Nýr leikur á stiginu ${LEVEL_NAMES[level]}?</h2><p>Núverandi leikur er ókláraður og verður skráður sem tap.</p>
+      <div class="acts"><button class="btn" data-a="close">Nei, halda áfram</button><button class="btn pri" data-a="go">Já, nýr leikur</button></div>`, true,
+      { go: () => { lvStats().streak = 0; saveStats(); hideModal(); newGame(level, m); } });
+  } else newGame(level, m);
+}
+
+function newGame(level, m) {
+  busy = true; hideModal(); mode = m || mode; markSegs(level, mode);
+  $('#pauseOv').classList.remove('show'); $('#genOv').classList.add('show');
+  $('#board').classList.remove('won');
+  setTimeout(() => {
+    const g = gen(mode, level);
+    game = makeGame(g, level, false, mode);
+    store.set('ks-level', level); store.set('ks-mode', mode);
+    startGame();
+  }, 40);
+}
+
+function makeGame(g, level, duel, m) {
+  const val = new Array(81).fill(0), given = new Array(81).fill(false);
+  g.givens.forEach(i => { val[i] = g.solution[i]; given[i] = true; });
+  return { mode: m, level, solution: g.solution, cages: g.cages, cageOf: g.cageOf, given, val, notes: new Array(81).fill(0),
+    elapsed: 0, mistakes: 0, hints: 0, counted: false, started: false, done: false, duel, history: [] };
+}
+
+function startGame() {
+  sel = -1; hl = 0; paused = false; busy = false; notesMode = false; waiting = false;
+  $('#genOv').classList.remove('show'); $('#pauseOv').classList.remove('show'); $('#turnOv').classList.remove('show');
+  $('#board').classList.remove('paused', 'won');
+  drawCages(); save(); render();
+  if (pending && !match) { const [l, m] = pending; pending = null; if (l !== game.level || m !== game.mode) newGame(l, m); }
+}
+
+function setPaused(p) {
+  if (!game || game.done || busy || waiting) return;
+  paused = p;
+  $('#board').classList.toggle('paused', p); $('#pauseOv').classList.toggle('show', p);
+  $('#pauseIc').innerHTML = p ? '<path d="M7 4v16l13-8z"/>' : '<path d="M8 5v14M16 5v14"/>';
+}
+setInterval(() => {
+  if (!game || !game.started || game.done || paused || busy || waiting || document.hidden) return;
+  game.elapsed++; $('#iTime').textContent = fmt(game.elapsed);
+  if (game.elapsed % 5 === 0) save();
+}, 1000);
+document.addEventListener('visibilitychange', () => { if (document.hidden && game && game.counted) setPaused(true); });
+window.addEventListener('beforeunload', save);
+
+/* ---------- play ---------- */
+const locked = i => game.given[i] || (game.val[i] && game.val[i] === game.solution[i]);
+const playable = () => game && !game.done && !paused && !busy && !waiting;
+const touch = () => { if (!game.started) { game.started = true; $('#timeBox').classList.remove('idle'); } };
+
+function select(i) {
+  if (!playable()) return;
+  touch(); sel = i; hl = game.val[i] || 0; render();
+}
+
+function markCounted() {
+  if (!game.counted) { game.counted = true; if (!game.duel) { lvStats().played++; saveStats(); } }
+}
+
+function input(d) {
+  if (!playable()) return;
+  touch();
+  if (sel < 0 || locked(sel)) { hl = d; render(); return; }
+  const i = sel, h = { i, val: game.val[i], notes: game.notes[i], peers: [] };
+  if (notesMode) {
+    game.val[i] = 0; game.notes[i] ^= 1 << d; hl = 0;
+  } else if (game.val[i] === d) {
+    game.val[i] = 0; hl = 0;
+  } else {
+    game.val[i] = d; hl = d; justCell = i;
+    if (d === game.solution[i]) {
+      game.notes[i] = 0;
+      for (let j = 0; j < 81; j++) {
+        if (j !== i && (game.notes[j] >> d & 1) && (Engine.R[j] === Engine.R[i] || Engine.C[j] === Engine.C[i] || Engine.B[j] === Engine.B[i] || sameCage(j, i))) {
+          h.peers.push([j, game.notes[j]]); game.notes[j] &= ~(1 << d);
+        }
+      }
+    } else game.mistakes++;
+  }
+  markCounted(); game.history.push(h);
+  afterMove();
+}
+
+function erase() {
+  if (!playable() || sel < 0 || locked(sel)) return;
+  if (!game.val[sel] && !game.notes[sel]) return;
+  game.history.push({ i: sel, val: game.val[sel], notes: game.notes[sel], peers: [] });
+  game.val[sel] = 0; game.notes[sel] = 0; hl = 0;
+  afterMove();
+}
+
+function undo() {
+  if (!playable() || !game.history.length) return;
+  const h = game.history.pop();
+  game.val[h.i] = h.val; game.notes[h.i] = h.notes;
+  h.peers.forEach(([j, m]) => game.notes[j] = m);
+  sel = h.i; hl = h.val || 0;
+  save(); render();
+}
+
+function hint() {
+  if (!playable()) return;
+  touch();
+  let i = sel;
+  if (i < 0 || locked(i)) {
+    const open = []; for (let j = 0; j < 81; j++) if (!locked(j)) open.push(j);
+    if (!open.length) return;
+    i = open[(Math.random() * open.length) | 0];
+  }
+  const d = game.solution[i], h = { i, val: game.val[i], notes: game.notes[i], peers: [] };
+  game.val[i] = d; game.notes[i] = 0; game.hints++; sel = i; hl = d; justCell = i;
+  for (let j = 0; j < 81; j++) {
+    if (j !== i && (game.notes[j] >> d & 1) && (Engine.R[j] === Engine.R[i] || Engine.C[j] === Engine.C[i] || Engine.B[j] === Engine.B[i] || sameCage(j, i))) {
+      h.peers.push([j, game.notes[j]]); game.notes[j] &= ~(1 << d);
+    }
+  }
+  markCounted(); game.history.push(h);
+  afterMove();
+}
+
+function afterMove() {
+  if (game.val.every((v, i) => v === game.solution[i])) win();
+  save(); render();
+}
+
+function win() {
+  game.done = true; game.history = [];
+  sel = -1; hl = 0;
+  $('#board').classList.add('won');
+  if (game.duel) { recordTurn(false); setTimeout(afterTurn, 1300); return; }
+  const s = lvStats(), record = !s.best || game.elapsed < s.best;
+  s.won++; s.total += game.elapsed; s.streak++; s.bestStreak = Math.max(s.bestStreak, s.streak);
+  if (record) s.best = game.elapsed;
+  if (!game.mistakes && !game.hints) s.perfect++;
+  saveStats();
+  const lvl = game.level, gm = game.mode;
+  setTimeout(() => showModal(`<div class="big">🎉</div>${record ? '<div class="record">Nýtt met!</div>' : ''}
+    <h2>Til hamingju!</h2><p>Þú leystir ${MODE_TITLE[gm]} á stiginu <b>${LEVEL_NAMES[lvl]}</b> (${lvl + 1} af ${NL}).</p>
+    <div class="wingrid"><div><small>Tími</small><b>${fmt(game.elapsed)}</b></div><div><small>Villur</small><b>${game.mistakes}</b></div><div><small>Vísbendingar</small><b>${game.hints}</b></div></div>
+    <div class="acts"><button class="btn" data-a="stats">Tölfræði</button><button class="btn pri" data-a="go">Nýr leikur</button></div>`, true,
+    { go: () => newGame(lvl, gm), stats: () => showStats(gm) }), 1300);
+}
+
+/* ---------- render ---------- */
+function render() {
+  if (!game) return;
+  const { val, notes, solution, given, cageOf } = game;
+  const sr = sel >= 0 ? Engine.R[sel] : -1, sc = sel >= 0 ? Engine.C[sel] : -1, sb = sel >= 0 ? Engine.B[sel] : -1, sg = sel >= 0 ? cageOf[sel] : -1;
+  const count = new Array(10).fill(0);
+  for (let i = 0; i < 81; i++) {
+    const v = val[i], c = cellEls[i];
+    let cls = 'cell';
+    if (given[i]) cls += ' given'; else if (v) cls += v === solution[i] ? ' user' : ' error';
+    if (v && v === solution[i]) count[v]++;
+    if (i === sel) cls += ' sel';
+    else if (sel >= 0 && (Engine.R[i] === sr || Engine.C[i] === sc || Engine.B[i] === sb || (sg >= 0 && cageOf[i] === sg))) cls += ' peer';
+    if (hl && v === hl && i !== sel) cls += ' same';
+    if (i === justCell) cls += ' just';
+    c.el.className = cls;
+    c.val.textContent = v || '';
+    for (let d = 1; d <= 9; d++) {
+      const on = !v && (notes[i] >> d & 1), n = c.notes[d - 1];
+      n.textContent = on ? d : ''; n.className = on && d === hl ? 'hl' : '';
+    }
+  }
+  justCell = -1;
+  for (let d = 1; d <= 9; d++) {
+    const b = padEls[d], done = count[d] >= 9;
+    b.classList.toggle('done', done); b.classList.toggle('hl', hl === d && !done);
+    b.disabled = done; b.lastChild.textContent = 9 - count[d];
+  }
+  markSegs(game.level, game.mode);
+  $('#logoTxt').textContent = MODE_TITLE[game.mode]; $('#logoI').textContent = game.mode === 'killer' ? 'K' : 'S';
+  document.title = MODE_TITLE[game.mode];
+  $('#iLevel').textContent = `${game.level + 1}/${NL}`; $('#iLevel').title = LEVEL_NAMES[game.level];
+  $('#iMist').textContent = game.mistakes;
+  $('#iTime').textContent = fmt(game.elapsed);
+  $('#timeBox').classList.toggle('idle', !game.started);
+  document.body.classList.toggle('duel', !!match);
+  $('#newBtn').textContent = match ? 'Gefast upp' : 'Nýr leikur';
+  if (match) {
+    $('#dRound').textContent = `Umferð ${match.round + 1} af ${match.rounds}`;
+    $('#dWho').textContent = match.players[Math.min(match.turn, match.players.length - 1)];
+  }
+  $('#tNotes').classList.toggle('on', notesMode); $('#nBadge').textContent = notesMode ? 'Á' : 'AF';
+}
+
+/* ---------- modals ---------- */
+let modalActs = {}, modalSticky = false;
+function showModal(html, narrow, acts, sticky) {
+  modalActs = acts || {}; modalSticky = !!sticky;
+  $('#card').className = 'card' + (narrow === true ? ' narrow' : narrow ? ' ' + narrow : ''); $('#card').innerHTML = html;
+  $('#modal').classList.add('show');
+}
+function hideModal() { $('#modal').classList.remove('show'); }
+$('#modal').addEventListener('click', e => {
+  if (e.target === $('#modal')) { if (!modalSticky) hideModal(); return; }
+  const a = e.target.closest('[data-a]'); if (!a) return;
+  const k = a.dataset.a; if (k === 'close') hideModal(); else if (modalActs[k]) modalActs[k](a);
+});
+
+function showStats(m) {
+  m = MODES[m] ? m : (game ? game.mode : mode);
+  const tabs = `<div class="seg" style="margin-top:14px">${Object.entries(MODES).map(([k, n]) => `<button data-a="tab" data-m="${k}" class="${k === m ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  const cards = stats[m].map((s, i) => {
+    const pct = s.played ? Math.round(s.won / s.played * 100) : 0;
+    return `<div class="lv"><h3>${i + 1}. ${LEVEL_NAMES[i]}<span>${pct}% sigrar</span></h3><div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="st">
+        <div><small>Leikir</small><b>${s.played}</b></div><div><small>Sigrar</small><b>${s.won}</b></div>
+        <div><small>Besti tími</small><b>${s.best ? fmt(s.best) : '–'}</b></div><div><small>Meðaltími</small><b>${s.won ? fmt(Math.round(s.total / s.won)) : '–'}</b></div>
+        <div><small>Sigurganga</small><b>${s.streak} <span style="color:var(--muted);font-weight:500">/ mest ${s.bestStreak}</span></b></div><div><small>Villulausir</small><b>${s.perfect}</b></div>
+      </div></div>`;
+  }).join('');
+  showModal(`<h2>Tölfræði</h2><p style="margin:0">Árangur þinn á hverju erfiðleikastigi.</p>${tabs}<div class="stats">${cards}</div>
+    <div class="acts"><button class="btn danger" data-a="reset">Núllstilla</button><button class="btn pri" data-a="close">Loka</button></div>`, false,
+    { tab: el => showStats(el.dataset.m), reset: () => showModal(`<h2>Núllstilla tölfræði?</h2><p>Öllum árangri á öllum stigum verður eytt. Þetta er ekki hægt að afturkalla.</p>
+        <div class="acts"><button class="btn" data-a="back">Hætta við</button><button class="btn pri" data-a="yes">Núllstilla</button></div>`, true,
+        { back: () => showStats(m), yes: () => { stats = blankAll(); saveStats(); showStats(m); } }) });
+}
+
+/* ---------- einvígi ---------- */
+const setup = { n: 2, names: ['', '', '', ''], rounds: 3, level: 2, mode: 'killer' };
+const saveMatch = () => store.set('ks-match', match);
+const total = r => r.time + PEN_MISTAKE * r.mistakes + PEN_HINT * r.hints;
+
+function showDuelSetup() {
+  const seg = (k, opts, cur) => `<div class="seg">${opts.map(([v, t]) => `<button data-a="set" data-k="${k}" data-v="${v}" class="${v === cur ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+  let names = '';
+  for (let i = 0; i < setup.n; i++) names += `<input class="inp" maxlength="14" data-n="${i}" placeholder="Leikmaður ${i + 1}" value="${esc(setup.names[i])}">`;
+  const read = () => document.querySelectorAll('#card input[data-n]').forEach(el => setup.names[+el.dataset.n] = el.value.trim());
+  showModal(`<h2>Nýtt einvígi</h2><p style="margin:0">Leikmenn leysa sömu þraut til skiptis á þessu tæki. Sá fljótasti fær flest stig. Hver villa kostar ${PEN_MISTAKE} sek. og hver vísbending ${PEN_HINT} sek.</p>
+    <div class="field"><label>Fjöldi leikmanna</label>${seg('n', [[2, '2'], [3, '3'], [4, '4']], setup.n)}</div>
+    <div class="field"><label>Nöfn</label><div class="names">${names}</div></div>
+    <div class="field"><label>Fjöldi leikja</label><div class="step"><button data-a="set" data-k="rounds" data-v="${Math.max(1, setup.rounds - 1)}">−</button><b>${setup.rounds}</b><button data-a="set" data-k="rounds" data-v="${Math.min(10, setup.rounds + 1)}">+</button></div></div>
+    <div class="field"><label>Tegund</label>${seg('mode', Object.entries(MODES), setup.mode)}</div>
+    <div class="field"><label>Erfiðleikastig · ${LEVEL_NAMES[setup.level]}</label>${seg('level', LEVEL_NAMES.map((n, i) => [i, String(i + 1)]), setup.level)}</div>
+    <div class="acts"><button class="btn" data-a="close">Hætta við</button><button class="btn pri" data-a="start">Hefja keppni</button></div>`, 'mid',
+    { set: el => { read(); setup[el.dataset.k] = el.dataset.k === 'mode' ? el.dataset.v : +el.dataset.v; showDuelSetup(); },
+      start: () => {
+        read();
+        match = { players: setup.names.slice(0, setup.n).map((n, i) => n || 'Leikmaður ' + (i + 1)), rounds: setup.rounds, level: setup.level, mode: setup.mode,
+          round: 0, turn: 0, puzzle: null, results: [] };
+        newRound();
+      } });
+}
+
+function newRound() {
+  busy = true; hideModal();
+  $('#pauseOv').classList.remove('show'); $('#turnOv').classList.remove('show'); $('#genOv').classList.add('show');
+  $('#board').classList.remove('won');
+  setTimeout(() => {
+    const g = gen(match.mode, match.level);
+    match.puzzle = { solution: g.solution, cages: g.cages, cageOf: g.cageOf, givens: g.givens };
+    match.results[match.round] = []; match.turn = 0;
+    saveMatch(); startTurn();
+  }, 40);
+}
+
+function startTurn() {
+  hideModal();
+  game = makeGame(match.puzzle, match.level, true, match.mode);
+  startGame(); showTurnOv();
+}
+
+function showTurnOv() {
+  waiting = true;
+  $('#board').classList.add('paused');
+  $('#turnSub').textContent = `Umferð ${match.round + 1} af ${match.rounds} · ${MODES[match.mode] + ' · ' + LEVEL_NAMES[match.level]}`;
+  $('#turnWho').textContent = match.players[match.turn] + ' á leik';
+  $('#turnOv').classList.add('show');
+}
+
+function recordTurn(dnf) {
+  game.done = true; game.history = [];
+  match.results[match.round][match.turn] = { time: game.elapsed, mistakes: game.mistakes, hints: game.hints, dnf };
+  match.turn++;
+  save(); saveMatch(); render();
+}
+
+function afterTurn() {
+  if (!match) return;
+  $('#board').classList.add('paused');
+  if (match.turn >= match.players.length) return showStandings(false);
+  const r = match.results[match.round][match.turn - 1], who = match.players[match.turn - 1];
+  showModal(`<div class="big">${r.dnf ? '🏳️' : '✅'}</div><h2>${esc(who)} ${r.dnf ? 'gafst upp' : 'kláraði!'}</h2>
+    <div class="wingrid"><div><small>Tími</small><b>${fmt(r.time)}</b></div><div><small>Villur</small><b>${r.mistakes}</b></div><div><small>Vísbendingar</small><b>${r.hints}</b></div></div>
+    <p style="margin:12px 0 0">${r.dnf ? 'Engin stig fyrir þessa umferð.' : 'Lokatími með refsitíma: <b>' + fmt(total(r)) + '</b>'}</p>
+    <div class="acts"><button class="btn pri" data-a="next">Næst: ${esc(match.players[match.turn])}</button></div>`, true, { next: startTurn }, true);
+}
+
+function giveUp() {
+  if (busy || !game || game.done) return;
+  showModal(`<h2>Gefast upp?</h2><p>${esc(match.players[match.turn])} fær engin stig fyrir þessa umferð.</p>
+    <div class="acts"><button class="btn" data-a="close">Halda áfram</button><button class="btn pri" data-a="yes">Gefast upp</button></div>`, true,
+    { yes: () => { hideModal(); recordTurn(true); afterTurn(); } });
+}
+
+// Stig í umferð: sá fljótasti fær jafnmörg stig og leikmenn eru, næsti einu færra o.s.frv. Uppgjöf gefur 0.
+function roundPoints(res) {
+  const n = match.players.length;
+  return res.map(r => (!r || r.dnf) ? 0 : n - res.filter(o => o && !o.dnf && total(o) < total(r)).length);
+}
+
+function showStandings(fromButton) {
+  const n = match.players.length;
+  const roundDone = match.turn >= n, final = roundDone && match.round >= match.rounds - 1;
+  const tot = match.players.map((name, i) => ({ name, i, pts: 0, wins: 0, time: 0 }));
+  match.results.forEach(res => {
+    if (res.filter(Boolean).length < n) return;
+    roundPoints(res).forEach((p, i) => { tot[i].pts += p; if (p === n) tot[i].wins++; tot[i].time += res[i].dnf ? 0 : total(res[i]); });
+  });
+  tot.sort((a, b) => b.pts - a.pts || b.wins - a.wins || a.time - b.time);
+  const res = match.results[match.round] || [];
+  let roundHtml = '';
+  if (res.some(Boolean)) {
+    const pts = roundDone ? roundPoints(res) : null;
+    const rows = match.players.map((name, i) => ({ name, r: res[i], p: pts ? pts[i] : null })).filter(x => x.r)
+      .sort((a, b) => (a.r.dnf - b.r.dnf) || total(a.r) - total(b.r));
+    roundHtml = `<h4>Umferð ${match.round + 1}${roundDone ? '' : ' (í gangi)'}</h4><table class="tbl"><tr><th>Leikmaður</th><th class="r">Tími</th><th class="r">Stig</th></tr>
+      ${rows.map((x, k) => `<tr class="${k === 0 && !x.r.dnf ? 'lead' : ''}"><td>${esc(x.name)}<small>${x.r.mistakes} ${x.r.mistakes === 1 ? 'villa' : 'villur'} · ${x.r.hints} vísb.</small></td>
+        <td class="r">${x.r.dnf ? 'Gafst upp' : fmt(total(x.r))}</td><td class="r pts">${x.p === null ? '–' : '+' + x.p}</td></tr>`).join('')}</table>`;
+  }
+  const title = final ? `🏆 ${esc(tot[0].name)} sigrar!` : roundDone ? `Staða eftir ${match.round + 1}. umferð` : 'Staðan í einvíginu';
+  const sub = final ? `Lokastaða eftir ${match.rounds} ${match.rounds === 1 ? 'leik' : 'leiki'} · ${MODES[match.mode] + ' · ' + LEVEL_NAMES[match.level]}`
+    : `Umferð ${match.round + 1} af ${match.rounds} · ${MODES[match.mode] + ' · ' + LEVEL_NAMES[match.level]}${roundDone ? '' : ' · ' + esc(match.players[match.turn]) + ' á leik'}`;
+  const acts = final ? `<button class="btn" data-a="end">Loka</button><button class="btn pri" data-a="again">Ný keppni</button>`
+    : roundDone ? `<button class="btn danger" data-a="quit">Hætta keppni</button><button class="btn pri" data-a="next">Næsta umferð</button>`
+    : `<button class="btn danger" data-a="quit">Hætta keppni</button><button class="btn pri" data-a="close">Loka</button>`;
+  showModal(`<h2>${title}</h2><p style="margin:0">${sub}</p>${roundHtml}
+    <h4>${final ? 'Lokastaða' : 'Heildarstaða'}</h4><table class="tbl"><tr><th>#</th><th>Leikmaður</th><th class="r">Sigrar</th><th class="r">Tími</th><th class="r">Stig</th></tr>
+    ${tot.map((t, k) => `<tr class="${k === 0 && t.pts ? 'lead' : ''}"><td>${k + 1}</td><td>${esc(t.name)}</td><td class="r">${t.wins}</td><td class="r">${t.time ? fmt(t.time) : '–'}</td><td class="r pts">${t.pts}</td></tr>`).join('')}</table>
+    <div class="acts">${acts}</div>`, 'mid',
+    { next: () => { match.round++; newRound(); },
+      end: () => endMatch(false), again: () => endMatch(true),
+      quit: () => showModal(`<h2>Hætta keppni?</h2><p>Einvíginu lýkur og staðan tapast.</p>
+        <div class="acts"><button class="btn" data-a="back">Hætta við</button><button class="btn pri" data-a="yes">Hætta keppni</button></div>`, true,
+        { back: () => showStandings(fromButton), yes: () => endMatch(false) }, !fromButton) }, !fromButton);
+}
+
+function endMatch(again) {
+  const lvl = match.level, m = match.mode;
+  match = null; saveMatch(); hideModal();
+  document.body.classList.remove('duel');
+  newGame(lvl, m);
+  if (again) showDuelSetup();
+}
+
+/* ---------- controls ---------- */
+$('#statsBtn').onclick = showStats;
+$('#newBtn').onclick = () => match ? giveUp() : requestNew(curLevel(), curMode());
+$('#duelBtn').onclick = () => match ? showStandings(true) : showDuelSetup();
+$('#turnBtn').onclick = () => { waiting = false; $('#turnOv').classList.remove('show'); $('#board').classList.remove('paused'); };
+$('#tUndo').onclick = undo; $('#tErase').onclick = erase; $('#tHint').onclick = hint;
+$('#tNotes').onclick = () => { notesMode = !notesMode; render(); };
+$('#timeBox').onclick = () => setPaused(!paused);
+$('#resumeBtn').onclick = () => setPaused(false);
+
+document.addEventListener('keydown', e => {
+  if ($('#modal').classList.contains('show')) { if (e.key === 'Escape' && !modalSticky) hideModal(); return; }
+  const k = e.key;
+  if (k === 'p' || k === 'P') return setPaused(!paused);
+  if (!playable()) return;
+  if (k >= '1' && k <= '9') input(+k);
+  else if (k === 'Backspace' || k === 'Delete' || k === '0') erase();
+  else if (k === 'n' || k === 'N') { notesMode = !notesMode; render(); }
+  else if (k === 'z' || k === 'Z' || k === 'u' || k === 'U') undo();
+  else if (k === 'h' || k === 'H') hint();
+  else if (k === 'Escape') { sel = -1; hl = 0; render(); }
+  else if (k.startsWith('Arrow')) {
+    let r = sel < 0 ? 4 : Engine.R[sel], c = sel < 0 ? 4 : Engine.C[sel];
+    if (sel >= 0) {
+      if (k === 'ArrowUp') r = (r + 8) % 9; if (k === 'ArrowDown') r = (r + 1) % 9;
+      if (k === 'ArrowLeft') c = (c + 8) % 9; if (k === 'ArrowRight') c = (c + 1) % 9;
+    }
+    select(r * 9 + c);
+  } else return;
+  e.preventDefault();
+});
+
+/* ---------- boot ---------- */
+{
+  const saved = store.get('ks-game', null), okSaved = saved && saved.solution && saved.solution.length === 81;
+  if (okSaved && saved.started === undefined) saved.started = !!saved.counted;
+  if (okSaved && !saved.mode) { saved.mode = 'killer'; saved.level = oldLevel(saved.level); }
+  if (okSaved && !saved.duel && !saved.done) mode = saved.mode;
+  if (match) {
+    if (okSaved && saved.duel && !saved.done) { game = saved; startGame(); if (game.started) setPaused(true); else showTurnOv(); }
+    else if (match.turn < match.players.length) startTurn();
+    else { game = makeGame(match.puzzle, match.level, true, match.mode); game.done = true; startGame(); $('#board').classList.add('paused'); showStandings(false); }
+  }
+  else if (okSaved && !saved.duel && !saved.done) { game = saved; startGame(); }
+  else newGame(Math.min(NL - 1, Math.max(0, store.get('ks-level', 2) | 0)), mode);
+}
+</script>
+</body>
+</html>
